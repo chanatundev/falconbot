@@ -1,0 +1,7 @@
+g-auth.json
+*.env
+*.db
+**/__pycache__/
+/pycache/*
+**/*.pyc
+**/*.cpython*

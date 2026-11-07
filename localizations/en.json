@@ -1,0 +1,37 @@
+{
+    "embed": {
+        "on_first_page": "You are on the first page.",
+        "on_last_page": "You are on the last page.",
+        "no_perms": "You don't have permission to use this search modal.",
+        "nothing": "Nothing here",
+        "go_to_modal": {
+            "title": "Go to page...",
+            "label": "Page #",
+            "placeholder": "Enter the page number to go to...",
+            "error": "Please enter a valid page number between 1 and {max_page}",
+            "nan": "Please enter a valid number"
+        },
+        "search_modal": {
+            "title": "Search...",
+            "label": "Search query",
+            "placeholder": "Enter your search query here...",
+            "error": "Please enter a valid search query"
+        }
+    },
+    "attendance": {
+        "setup_success": "Attendance tracking set up!",
+        "setup_already": "you have already set up attendance for this server, use different commands to change settings",
+        "unknown_timezone": "unknwn timezone",
+        "no_setup": "run `/attendance setup` first",
+        "error_opening_spreadsheet": "Error opening spreadsheet",
+        "error_accessing_cells": "Error accessing cells: {e}",
+        "setup_spreadsheet_success": "Imported {events} times and {attendances} attendance entries",
+        "setup_spreadsheet_already": "you have already set up google sheets for this server, use different commands to configure sheets settings",
+
+        "no_meeting_found": "No meeting found with name \"{name}\"",
+        "attendance_embed_title": "Attendance for {name}",
+        "meeting_attendance": "{name}: `{attending} attending, {not_attending} not attending.`",
+
+        "link_discord_message": "Discord linked successfully"
+    }
+}
