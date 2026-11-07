@@ -78,15 +78,14 @@ class ExtensionCog(commands.Cog):
                 pings = f"||{pings}||"
                 start_time = event["start_time"]
                 if start_time - reminder_time["minutes"] * 60 <= datetime.now(dt_timezone.utc).timestamp():
-                    print("Skipping reminder for event:", event["name"])
                     continue
                 self.reminders.setdefault(str(event['event_id']), {})[
                     str(reminder_time["minutes"])
                 ] = asyncio.create_task(self.schedule_message(
                     datetime.fromtimestamp(start_time - timedelta(minutes=reminder_time["minutes"]).total_seconds(), tz=dt_timezone.utc),
                     server["message"].format(
-                        user=pings,
-                        date=event["name"]
+                        users=pings,
+                        meeting=event["name"]
                     ), 
                     channel
                 ))
@@ -94,13 +93,13 @@ class ExtensionCog(commands.Cog):
     @extension_commands.command(name="setup", description="quickly set up attendance tracking")
     @app_commands.describe(
         channel="The channel where attendance messages will be sent",
-        message="use {user} as a replacement for their name and {date} as replacement for time",
+        message="use {users} as a replacement for mentions and {meeting} as replacement for the time meeting",
         time_before="time in minutes before to send reminder"
     )
     @app_commands.checks.has_permissions(manage_guild=True)
     async def setup(self, interaction: discord.Interaction,
         channel: discord.TextChannel,
-        message: str = "Hey {user}, reminder that you are signed up for {date} today!",
+        message: str = "{users}\nHey, reminder that you are signed up for {meeting} today!",
         time_before: app_commands.Range[int, 0, 1440] = 30,
         time_before_2: app_commands.Range[int, -1, 1440] = -1,
         timezone: str = "America/New_York"
@@ -366,15 +365,7 @@ class ExtensionCog(commands.Cog):
             for e in events
         ]
 
-    @extension_commands.command(name="link_discord")
-    @app_commands.checks.has_permissions(manage_guild=True)
-    async def link_discord(self, interaction: discord.Interaction, name: int, member: discord.Member):
-        if await db.link_discord(interaction.guild.id, name, member.id):
-            await interaction.response.send_message(l.get("attendance.link_discord_message"))
-        else:
-            await interaction.response.send_message(l.get("attendance.link_discord_failed_message"))
-    @link_discord.autocomplete("name")
-    async def link_discord_attendee_name_autocomplete(self, interaction: discord.Interaction, current: str):
+    async def attendee_name_autocomplete(self, interaction: discord.Interaction, current: str):
         try:
             attendees = await db.search_attendees(interaction.guild.id, current)
         except Exception:
@@ -386,6 +377,24 @@ class ExtensionCog(commands.Cog):
             )
             for a in attendees
         ]
+    
+    @extension_commands.command(name="unlink_discord")
+    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.autocomplete(name=attendee_name_autocomplete)
+    async def unlink_discord(self, interaction: discord.Interaction, name: int):
+        if await db.unlink_discord(interaction.guild.id, name):
+            await interaction.response.send_message(l.get("attendance.unlink_discord_message"))
+        else:
+            await interaction.response.send_message(l.get("attendance.unlink_discord_failed_message"))
+
+    @extension_commands.command(name="link_discord")
+    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.autocomplete(name=attendee_name_autocomplete)
+    async def link_discord(self, interaction: discord.Interaction, name: int, member: discord.Member):
+        if await db.link_discord(interaction.guild.id, name, member.id):
+            await interaction.response.send_message(l.get("attendance.link_discord_message"))
+        else:
+            await interaction.response.send_message(l.get("attendance.link_discord_failed_message"))
     
     @tasks.loop(seconds=10)
     async def update_all_sheets_attendance(self):

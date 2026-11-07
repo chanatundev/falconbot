@@ -14,7 +14,7 @@ class FalconBot(commands.Bot):
         await db.init()
         self.gspread = setup_gspread()
         await self.load_extension("extensions.attendance")
-        # await self.tree.sync()
+        await self.tree.sync()
 
     async def close(self):
         await db.close()

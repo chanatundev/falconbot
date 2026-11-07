@@ -32,6 +32,9 @@
         "attendance_embed_title": "Attendance for {name}",
         "meeting_attendance": "{name}: `{attending} attending, {not_attending} not attending.`",
 
-        "link_discord_message": "Discord linked successfully"
+        "link_discord_message": "Discord linked successfully",
+        "link_discord_failed_message": "Failed to link",
+        "unlink_discord_message": "Discord unlinked successfully",
+        "unlink_discord_failed_message": "Failed to unlink"
     }
 }

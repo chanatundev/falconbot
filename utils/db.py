@@ -200,6 +200,14 @@ async def get_events(server_id: int) -> list[aiosqlite.Row]:
     ) as cur:
         return await cur.fetchall()
 
+async def unlink_discord(server_id: int, attendee_id: int) -> bool:
+    cur = await _db.execute(
+        "UPDATE attendees SET discord_id = NULL WHERE server_id = ? AND attendee_id = ?",
+        (server_id, attendee_id),
+    )
+    await _db.commit()
+    return cur.rowcount > 0
+
 async def link_discord(server_id: int, attendee_id: int, discord_id: int) -> bool:
     cur = await _db.execute(
         "UPDATE attendees SET discord_id = ? WHERE server_id = ? AND attendee_id = ?",
