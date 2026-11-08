@@ -1,7 +1,8 @@
 import aiosqlite
 from datetime import datetime, timezone
+from pathlib import Path
 
-DB_PATH = "servers.db"
+DB_PATH = str(Path(__file__).resolve().parent.parent / "servers.db")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS servers (
@@ -83,15 +84,26 @@ async def get_server(server_id: int) -> dict | None:
 
 
 async def create_server(server_id: int, reminder_channel_id: int, message: str, timezone: str, times_before: list[int]) -> None:
-    await _db.execute(
-        "INSERT INTO servers (server_id, reminder_channel_id, message, timezone) VALUES (?, ?, ?, ?)",
-        (server_id, reminder_channel_id, message, timezone),
-    )
-    await _db.executemany(
-        "INSERT INTO reminder_times_before (server_id, minutes) VALUES (?, ?)",
-        [(server_id, m) for m in times_before],
-    )
+    try:
+        await _db.execute(
+            "INSERT INTO servers (server_id, reminder_channel_id, message, timezone) VALUES (?, ?, ?, ?)",
+            (server_id, reminder_channel_id, message, timezone),
+        )
+        await _db.executemany(
+            "INSERT INTO reminder_times_before (server_id, minutes) VALUES (?, ?)",
+            [(server_id, m) for m in dict.fromkeys(times_before)],
+        )
+        await _db.commit()
+    except Exception:
+        await _db.rollback()
+        raise
+
+async def update_server_setting(server_id: int, field: str, value) -> bool:
+    if field not in {"reminder_channel_id", "message", "timezone"}:
+        raise ValueError(f"Unsupported server setting: {field}")
+    cur = await _db.execute(f"UPDATE servers SET {field} = ? WHERE server_id = ?", (value, server_id))
     await _db.commit()
+    return cur.rowcount > 0
 
 async def get_servers() -> list[dict]:
     async with _db.execute("SELECT * FROM servers") as cur:
@@ -147,6 +159,13 @@ async def save_events(server_id: int, events: dict[str, tuple[str, datetime]], a
             [(server_id, eid, name, int(dt.timestamp())) for eid, (name, dt) in events.items()],
         )
 
+        sheet_event_prefix = f"gs-{server_id}-"
+        stale_events = known - set(events)
+        await _db.executemany(
+            "DELETE FROM events WHERE server_id = ? AND event_id = ?",
+            [(server_id, eid) for eid in stale_events if eid.startswith(sheet_event_prefix)],
+        )
+
         await _db.executemany(
             "INSERT OR IGNORE INTO attendees (server_id, name) VALUES (?, ?)",
             [(server_id, n) for n in {name for _, name in rows}],
@@ -156,6 +175,10 @@ async def save_events(server_id: int, events: dict[str, tuple[str, datetime]], a
         ) as cur:
             ids = {r["name"]: r["attendee_id"] for r in await cur.fetchall()}
 
+        await _db.executemany(
+            "DELETE FROM attendance WHERE server_id = ? AND event_id = ?",
+            [(server_id, eid) for eid in events],
+        )
         await _db.executemany(
             """
             INSERT INTO attendance (server_id, event_id, attendee_id, status)
@@ -196,7 +219,7 @@ async def search_attendees(server_id: int, current: str = "") -> list[aiosqlite.
 
 async def get_events(server_id: int) -> list[aiosqlite.Row]:
     async with _db.execute(
-        "SELECT * FROM events WHERE server_id = ?", (server_id,)
+        "SELECT * FROM events WHERE server_id = ? ORDER BY start_time", (server_id,)
     ) as cur:
         return await cur.fetchall()
 
