@@ -195,7 +195,7 @@ class ExtensionCog(commands.Cog):
                     return
             elif field.value == "message":
                 try:
-                    value.format(**{name: "x" for name in ("users", "meeting", "attendees", "maybe", "potential", "not_attending", "unknown", "date", "time", "spreadsheet")})
+                    value.format(**{name: "x" for name in ("users", "meeting", "attendees", "maybe", "potential", "not_attending", "unknown", "date", "time", "end_time", "spreadsheet")})
                 except (KeyError, IndexError, ValueError) as e:
                     await interaction.response.send_message(f"Invalid message template: {e}", ephemeral=True)
                     return

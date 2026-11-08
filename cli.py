@@ -134,7 +134,7 @@ async def run(args):
                 await db.update_server_setting(args.server_id, "reminder_channel_id", int(args.value))
             elif args.field == "message":
                 try:
-                    args.value.format(**{name: "x" for name in ("users", "meeting", "attendees", "maybe", "potential", "not_attending", "unknown", "date", "time", "spreadsheet")})
+                    args.value.format(**{name: "x" for name in ("users", "meeting", "attendees", "maybe", "potential", "not_attending", "unknown", "date", "time", "end_time", "spreadsheet")})
                 except (KeyError, IndexError, ValueError) as exc:
                     raise ValueError(f"Invalid message template: {exc}") from exc
                 await db.update_server_setting(args.server_id, "message", args.value)
