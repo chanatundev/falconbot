@@ -244,9 +244,9 @@ class ExtensionCog(commands.Cog):
                     continue
                 if last_col is not None:
                     attendee += f" {cell(i, last_col)[:1]}."
-                status = cell(i, j)[:1].upper() or "N"
-                if status not in {"Y", "M", "N"}:
-                    status = "N"
+                status = cell(i, j)[:1].upper()
+                if status not in {"", "Y", "M", "N"}:
+                    status = ""
                 attendance.append((event_id, attendee, status))
             j += 1
 
