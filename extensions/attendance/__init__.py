@@ -525,7 +525,7 @@ class ExtensionCog(commands.Cog):
         lines.append(":yellow_circle: `Maybe Attending: `")
         for attendee in maybe_attending:
             lines.append(f"`- {attendee['name']}`")
-        lines.append(":red_circle: `Not Attending (N): `")
+        lines.append(":red_circle: `Not Attending: `")
         for attendee in not_attending:
             lines.append(f"`- {attendee['name']}`")
         embed = embed_helpers.list_to_embed(
