@@ -85,21 +85,36 @@ class ExtensionCog(commands.Cog):
                     datetime.fromtimestamp(start_time - timedelta(minutes=reminder_time["minutes"]).total_seconds(), tz=dt_timezone.utc),
                     server["message"].format(
                         users=pings,
-                        meeting=event["name"]
-                    ), 
+                        meeting=event["name"],
+                        date=datetime.fromtimestamp(start_time, tz=dt_timezone.utc).astimezone(ZoneInfo(server["timezone"])).strftime("%B %-d, %Y"),
+                        time=datetime.fromtimestamp(start_time, tz=dt_timezone.utc).astimezone(ZoneInfo(server["timezone"])).strftime("%-I:%M %p"),
+                        spreadsheet=(await db.get_sheet_config(server_id) or {}).get("url", ""),
+                    ),
                     channel
                 ))
+
+    @extension_commands.command(name="help", description="show attendance bot command help")
+    async def help(self, interaction: discord.Interaction):
+        await interaction.response.send_message(
+            "**Attendance bot commands**\n"
+            "`/attendance setup` — choose the reminder channel, message template, timezone, and reminder times.\n"
+            "`/attendance setup_sheets` — connect an attendance spreadsheet.\n"
+            "`/attendance get_attendance` — view attendance for a meeting.\n"
+            "`/attendance link_discord` and `/attendance unlink_discord` — link attendee names to Discord members.\n\n"
+            "Message template fields: `{meeting}`, `{date}`, `{time}`, `{users}`, `{spreadsheet}`.",
+            ephemeral=True,
+        )
 
     @extension_commands.command(name="setup", description="quickly set up attendance tracking")
     @app_commands.describe(
         channel="The channel where attendance messages will be sent",
-        message="use {users} as a replacement for mentions and {meeting} as replacement for the time meeting",
+        message="Template supports {meeting}, {date}, {time}, {users}, and {spreadsheet}.",
         time_before="time in minutes before to send reminder"
     )
     @app_commands.checks.has_permissions(manage_guild=True)
     async def setup(self, interaction: discord.Interaction,
         channel: discord.TextChannel,
-        message: str = "{users}\nHey, reminder that you are signed up for {meeting} today!",
+        message: str = "📣 **We're having a meeting on {date}'s meeting at {time}**\n\n> **Meeting Name: {meeting}**\n\nPlease arrive on time and check in when you get there.\n\n{users}",
         time_before: app_commands.Range[int, 0, 1440] = 30,
         time_before_2: app_commands.Range[int, -1, 1440] = -1,
         timezone: str = "America/New_York"
