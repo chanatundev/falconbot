@@ -125,6 +125,9 @@ class ExtensionCog(commands.Cog):
                         unknown=roster(""),
                         date=local_start.strftime("%B %-d, %Y"),
                         time=local_start.strftime("%-I:%M %p"),
+                        end_time=(datetime.fromtimestamp(event["end_time"], tz=dt_timezone.utc)
+                                  .astimezone(ZoneInfo(server["timezone"])).strftime("%-I:%M %p")
+                                  if event["end_time"] else "unavailable"),
                         spreadsheet=sheet_configs[server_id].get("url", ""),
                     )
                 except (KeyError, IndexError, ValueError) as e:
@@ -251,12 +254,12 @@ class ExtensionCog(commands.Cog):
     async def help(self, interaction: discord.Interaction):
         await interaction.response.send_message(
             "**Attendance bot commands**\n"
-            "`/attendance setup` — choose the reminder channel, message template, timezone, and reminder times.\n"
+            "`/attendance setup` — choose the reminder channel, message template, timezone, and reminder times (default reminder: 3 hours before).\n"
             "`/attendance setup_sheets` — connect an attendance spreadsheet.\n"
             "`/attendance edit` — change one bot or spreadsheet setting.\n"
             "`/attendance get_attendance` — view attendance for a meeting.\n"
             "`/attendance link_discord` and `/attendance unlink_discord` — link attendee names to Discord members.\n\n"
-            "Message template fields: `{meeting}`, `{date}`, `{time}`, `{users}`, `{attendees}`, `{maybe}`, `{potential}`, `{not_attending}`, `{unknown}`, `{spreadsheet}`.",
+            "Message template fields: `{meeting}`, `{date}`, `{time}`, `{end_time}`, `{users}`, `{attendees}`, `{maybe}`, `{potential}`, `{not_attending}`, `{unknown}`, `{spreadsheet}`.",
             ephemeral=True,
         )
 
@@ -264,14 +267,14 @@ class ExtensionCog(commands.Cog):
     @app_commands.guild_only()
     @app_commands.describe(
         channel="The channel where attendance messages will be sent",
-        message="Template fields: {meeting}, {date}, {time}, {users}, {attendees}, {maybe}, {potential}, {not_attending}, {unknown}, {spreadsheet}.",
-        time_before="time in minutes before to send reminder"
+        message="Template fields: {meeting}, {date}, {time}, {end_time}, {users}, {attendees}, {maybe}, {potential}, {not_attending}, {unknown}, {spreadsheet}.",
+        time_before="minutes before the meeting to send the reminder (default: 180, or 3 hours)"
     )
     @app_commands.checks.has_permissions(manage_guild=True)
     async def setup(self, interaction: discord.Interaction,
         channel: discord.TextChannel,
-        message: str = "📣 **We're having a meeting on {date} at {time}**\n\n> **Meeting Name: {meeting}**\n\nAttendees (marked Y):\n{attendees}\n\nPotential (marked M):\n{potential}\n\nNot attending (marked N):\n{not_attending}\n\nUnknown (blank in spreadsheet):\n{unknown}\n\nIf you intend to come or change your status, please open the [spreadsheet here]({spreadsheet})",
-        time_before: app_commands.Range[int, 0, 1440] = 30,
+        message: str = "📣 **Meeting Name: {meeting}**\n📅 {date} · {time}–{end_time}\n\nAttendees (marked Y):\n{attendees}\n\nPotential (marked M):\n{potential}\n\nNot attending (marked N):\n{not_attending}\n\nUnknown (blank in spreadsheet):\n{unknown}\n\nIf you intend to come or change your status, please open the [spreadsheet here]({spreadsheet})",
+        time_before: app_commands.Range[int, 0, 1440] = 180,
         time_before_2: app_commands.Range[int, -1, 1440] = -1,
         timezone: str = "America/New_York"
     ):
@@ -377,14 +380,18 @@ class ExtensionCog(commands.Cog):
                 year = running_year
             prev_month = month
 
-            (start_hour, start_minute), (_, _) = to_military_times(time_cell)
+            (start_hour, start_minute), (end_hour, end_minute) = to_military_times(time_cell)
             local_start = datetime(year, month, day, start_hour, start_minute, tzinfo=tz)
+            local_end = datetime(year, month, day, end_hour, end_minute, tzinfo=tz)
+            if local_end <= local_start:
+                local_end += timedelta(days=1)
             start_utc = local_start.astimezone(dt_timezone.utc)
+            end_utc = local_end.astimezone(dt_timezone.utc)
 
             event_id = f"gs-{server_id}-{j}"
             meeting_name = cell(meeting_name_row - 1, j) if meeting_name_row else ""
             meeting_name = meeting_name or f"Event at {local_start.strftime('%B %d')}, {local_start.strftime('%I:%M %p')}"
-            events[event_id] = (meeting_name, start_utc)
+            events[event_id] = (meeting_name, start_utc, end_utc)
 
             for i in range(row_start, row_end):
                 attendee = cell(i, name_col)

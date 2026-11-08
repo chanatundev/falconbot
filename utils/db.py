@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS events (
     event_id    TEXT NOT NULL,
     name        TEXT NOT NULL,
     start_time  INTEGER NOT NULL,
+    end_time    INTEGER,
     PRIMARY KEY (server_id, event_id)
 );
 
@@ -65,6 +66,10 @@ async def init() -> None:
     _db.row_factory = aiosqlite.Row
     await _db.execute("PRAGMA foreign_keys = ON")
     await _db.executescript(SCHEMA)
+    async with _db.execute("PRAGMA table_info(events)") as cur:
+        event_columns = {row["name"] for row in await cur.fetchall()}
+    if "end_time" not in event_columns:
+        await _db.execute("ALTER TABLE events ADD COLUMN end_time INTEGER")
     await _db.commit()
 
 async def close() -> None:
@@ -141,7 +146,7 @@ async def get_sheet_config(server_id: int) -> dict | None:
         row = await cur.fetchone()
     return dict(row) if row else None
 
-async def save_events(server_id: int, events: dict[str, tuple[str, datetime]], attendance: list[tuple[str, str, str]]) -> None:
+async def save_events(server_id: int, events: dict[str, tuple[str, datetime, datetime]], attendance: list[tuple[str, str, str]]) -> None:
     rows = {(eid, name): status for eid, name, status in attendance}
 
     async with _db.execute("SELECT event_id FROM events WHERE server_id = ?", (server_id,)) as cur:
@@ -153,10 +158,11 @@ async def save_events(server_id: int, events: dict[str, tuple[str, datetime]], a
     try:
         await _db.executemany(
             """
-            INSERT INTO events (server_id, event_id, name, start_time) VALUES (?, ?, ?, ?)
-            ON CONFLICT(server_id, event_id) DO UPDATE SET name = excluded.name, start_time = excluded.start_time
+            INSERT INTO events (server_id, event_id, name, start_time, end_time) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(server_id, event_id) DO UPDATE SET name = excluded.name, start_time = excluded.start_time, end_time = excluded.end_time
             """,
-            [(server_id, eid, name, int(dt.timestamp())) for eid, (name, dt) in events.items()],
+            [(server_id, eid, name, int(start.timestamp()), int(end.timestamp()))
+             for eid, (name, start, end) in events.items()],
         )
 
         sheet_event_prefix = f"gs-{server_id}-"

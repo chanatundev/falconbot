@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo, available_timezones
 
 import utils.db as db
 
-DEFAULT_MESSAGE = "📣 **We're having a meeting on {date} at {time}**\n\n> **Meeting Name: {meeting}**\n\nAttendees (marked Y):\n{attendees}\n\nPotential (marked M):\n{potential}\n\nNot attending (marked N):\n{not_attending}\n\nUnknown (blank in spreadsheet):\n{unknown}\n\nIf you intend to come or change your status, please open the [spreadsheet here]({spreadsheet})"
+DEFAULT_MESSAGE = "📣 **Meeting Name: {meeting}**\n📅 {date} · {time}–{end_time}\n\nAttendees (marked Y):\n{attendees}\n\nPotential (marked M):\n{potential}\n\nNot attending (marked N):\n{not_attending}\n\nUnknown (blank in spreadsheet):\n{unknown}\n\nIf you intend to come or change your status, please open the [spreadsheet here]({spreadsheet})"
 
 
 def parser():
@@ -26,7 +26,7 @@ def parser():
     setup.add_argument("--server-id", required=True, type=int)
     setup.add_argument("--channel-id", required=True, type=int)
     setup.add_argument("--timezone", default="America/New_York")
-    setup.add_argument("--time-before", type=int, default=30)
+    setup.add_argument("--time-before", type=int, default=180, help="reminder offset in minutes (default: 180, or 3 hours)")
     setup.add_argument("--time-before-2", type=int, help="optional second reminder offset in minutes")
     setup.add_argument("--message", default=DEFAULT_MESSAGE, help="reminder template")
 
@@ -98,7 +98,7 @@ async def run(args):
             if await db.get_server(args.server_id):
                 raise ValueError("This server is already configured")
             try:
-                args.message.format(**{name: "x" for name in ("users", "meeting", "attendees", "maybe", "potential", "not_attending", "unknown", "date", "time", "spreadsheet")})
+                args.message.format(**{name: "x" for name in ("users", "meeting", "attendees", "maybe", "potential", "not_attending", "unknown", "date", "time", "end_time", "spreadsheet")})
             except (KeyError, IndexError, ValueError) as exc:
                 raise ValueError(f"Invalid message template: {exc}") from exc
             offsets = list(dict.fromkeys([args.time_before] + ([args.time_before_2] if args.time_before_2 is not None else [])))
@@ -165,7 +165,10 @@ async def run(args):
             if server is None:
                 raise ValueError("Server is not configured")
             for event in await db.get_events(args.server_id):
-                when = datetime.fromtimestamp(event["start_time"], timezone.utc).astimezone(ZoneInfo(server["timezone"])).strftime("%Y-%m-%d %H:%M %Z")
+                start = datetime.fromtimestamp(event["start_time"], timezone.utc).astimezone(ZoneInfo(server["timezone"]))
+                end = (datetime.fromtimestamp(event["end_time"], timezone.utc).astimezone(ZoneInfo(server["timezone"]))
+                       if event["end_time"] else None)
+                when = f"{start:%Y-%m-%d %H:%M %Z}–{end:%H:%M %Z}" if end else f"{start:%Y-%m-%d %H:%M %Z}–end unavailable"
                 print(f"{event['event_id']}  {when}  {event['name']}")
         elif args.command == "attendance":
             if not await db.get_server(args.server_id):
