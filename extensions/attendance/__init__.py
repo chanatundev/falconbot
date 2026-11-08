@@ -71,11 +71,17 @@ class ExtensionCog(commands.Cog):
             events = await db.get_events(server_id)
             for event in events:
                 attendees = await db.get_attendees(server_id, event["event_id"])
-                pings = ""
-                for attendee in attendees:
-                    if attendee["status"] in {"Y", "M"}:
-                        pings += f"<@{attendee['discord_id']}> " if attendee["discord_id"] else f"{attendee['name']} "
-                pings = f"||{pings}||"
+                def roster(status):
+                    names = [
+                        f"<@{a['discord_id']}>" if a["discord_id"] else a["name"]
+                        for a in attendees if a["status"] == status
+                    ]
+                    return "\n".join(f"> {name}" for name in names) if names else "None"
+
+                pings = " ".join(
+                    f"<@{a['discord_id']}>" if a["discord_id"] else a["name"]
+                    for a in attendees if a["status"] in {"Y", "M"}
+                )
                 start_time = event["start_time"]
                 if start_time - reminder_time["minutes"] * 60 <= datetime.now(dt_timezone.utc).timestamp():
                     continue
@@ -84,8 +90,12 @@ class ExtensionCog(commands.Cog):
                 ] = asyncio.create_task(self.schedule_message(
                     datetime.fromtimestamp(start_time - timedelta(minutes=reminder_time["minutes"]).total_seconds(), tz=dt_timezone.utc),
                     server["message"].format(
-                        users=pings,
+                        users=f"||{pings}||" if pings else "None",
                         meeting=event["name"],
+                        attendees=roster("Y"),
+                        maybe=roster("M"),
+                        potential=roster("N"),
+                        unknown=roster(""),
                         date=datetime.fromtimestamp(start_time, tz=dt_timezone.utc).astimezone(ZoneInfo(server["timezone"])).strftime("%B %-d, %Y"),
                         time=datetime.fromtimestamp(start_time, tz=dt_timezone.utc).astimezone(ZoneInfo(server["timezone"])).strftime("%-I:%M %p"),
                         spreadsheet=(await db.get_sheet_config(server_id) or {}).get("url", ""),
@@ -101,20 +111,20 @@ class ExtensionCog(commands.Cog):
             "`/attendance setup_sheets` — connect an attendance spreadsheet.\n"
             "`/attendance get_attendance` — view attendance for a meeting.\n"
             "`/attendance link_discord` and `/attendance unlink_discord` — link attendee names to Discord members.\n\n"
-            "Message template fields: `{meeting}`, `{date}`, `{time}`, `{users}`, `{spreadsheet}`.",
+            "Message template fields: `{meeting}`, `{date}`, `{time}`, `{users}`, `{attendees}`, `{maybe}`, `{potential}`, `{unknown}`, `{spreadsheet}`.",
             ephemeral=True,
         )
 
     @extension_commands.command(name="setup", description="quickly set up attendance tracking")
     @app_commands.describe(
         channel="The channel where attendance messages will be sent",
-        message="Template supports {meeting}, {date}, {time}, {users}, and {spreadsheet}.",
+        message="Template fields: {meeting}, {date}, {time}, {users}, {attendees}, {maybe}, {potential}, {unknown}, {spreadsheet}.",
         time_before="time in minutes before to send reminder"
     )
     @app_commands.checks.has_permissions(manage_guild=True)
     async def setup(self, interaction: discord.Interaction,
         channel: discord.TextChannel,
-        message: str = "📣 **We're having a meeting on {date}'s meeting at {time}**\n\n> **Meeting Name: {meeting}**\n\nPlease arrive on time and check in when you get there.\n\n{users}",
+        message: str = "📣 **We're having a meeting on {date} at {time}**\n\n> **Meeting Name: {meeting}**\n\nAttendees (marked Y):\n{attendees}\n\nPotential (marked N):\n{potential}\n\nUnknown (blank in spreadsheet):\n{unknown}\n\nIf you intend to come or change your status, please open the [spreadsheet here]({spreadsheet})",
         time_before: app_commands.Range[int, 0, 1440] = 30,
         time_before_2: app_commands.Range[int, -1, 1440] = -1,
         timezone: str = "America/New_York"
