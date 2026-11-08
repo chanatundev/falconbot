@@ -522,7 +522,7 @@ class ExtensionCog(commands.Cog):
         lines.append(":green_circle: `Attending: `")
         for attendee in attending:
             lines.append(f"`- {attendee['name']}`")
-        lines.append(":yellow_circle: `Potential: `")
+        lines.append(":yellow_circle: `Maybe Attending: `")
         for attendee in maybe_attending:
             lines.append(f"`- {attendee['name']}`")
         lines.append(":red_circle: `Not Attending (N): `")
